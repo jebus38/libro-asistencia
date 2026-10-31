@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Libro de asistencia</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#6b4f2a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Asistencia">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f4efe6; --surface: #fffdf8; --ink: #2b2118; --muted: #7a6a58;
+  --line: #d9cdb9; --head: #6b4f2a; --accent: #b5652b; --ok: #3f7d4e;
+  --weekend: #efe6d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #1d1812; --surface: #272118; --ink: #f1e8da; --muted: #a8977e;
+    --line: #4a3e2e; --head: #e0b47a; --accent: #d98a4e; --ok: #74b985;
+    --weekend: #302819;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1d1812; --surface: #272118; --ink: #f1e8da; --muted: #a8977e;
+  --line: #4a3e2e; --head: #e0b47a; --accent: #d98a4e; --ok: #74b985;
+  --weekend: #302819;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: Georgia, "Times New Roman", serif; font-variant-numeric: lining-nums tabular-nums; }
+body { padding: env(safe-area-inset-top, 0px) 12px env(safe-area-inset-bottom, 0px); }
+.wrap { max-width: 860px; margin: 0 auto; padding: 16px 0 32px; }
+h1 { font-size: 1.6rem; margin: 0 0 4px; color: var(--head); }
+.sub { color: var(--muted); font-size: .9rem; margin-bottom: 16px; }
+.panel {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px; margin-bottom: 14px;
+}
+.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+label { display: flex; flex-direction: column; font-size: .8rem; color: var(--muted); gap: 4px; }
+input, select, button {
+  font: inherit; font-variant-numeric: lining-nums tabular-nums; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; min-height: 36px;
+}
+input[type="number"] { width: 110px; }
+button { cursor: pointer; background: var(--accent); color: #fff; border-color: var(--accent); padding: 6px 14px; }
+button.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.stat { border-left: 3px solid var(--accent); padding: 4px 10px; }
+.stat b { display: block; font-size: 1.25rem; font-weight: normal; font-variant-numeric: lining-nums tabular-nums; }
+.stat span { font-size: .8rem; color: var(--muted); }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 620px; }
+th, td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; font-size: .92rem; }
+th { color: var(--head); font-weight: normal; border-bottom: 2px solid var(--head); font-variant: small-caps; letter-spacing: .03em; }
+tr.weekend td { background: var(--weekend); }
+td.num { text-align: right; font-variant-numeric: lining-nums tabular-nums; }
+td input[type="time"], td select { width: 100%; min-width: 96px; }
+.hint { font-size: .78rem; color: var(--muted); margin-top: 8px; }
+@media print {
+  body { background: #fff; color: #000; }
+  .controls, .noprint { display: none !important; }
+  .panel { border: none; padding: 0; }
+  th { color: #000; border-bottom-color: #000; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Libro de asistencia</h1>
+  <div class="sub">Registra entrada, salida y estado de cada día. Los datos se guardan en este navegador.</div>
+
+  <div class="panel controls noprint">
+    <label>Mes
+      <input type="month" id="mes">
+    </label>
+    <label>Valor hora ($)
+      <input type="number" id="valorHora" min="0" step="1">
+    </label>
+    <label>Horas por jornada
+      <input type="number" id="jornada" min="0" max="24" step="0.5">
+    </label>
+    <button class="ghost" id="limpiar">Limpiar mes</button>
+    <button class="ghost" id="importar">Importar</button>
+    <input type="file" id="archivo" accept=".json,application/json" hidden>
+    <button class="ghost" id="exportar">Exportar</button>
+    <button class="ghost" id="tema">🌙 Modo noche</button>
+    <button id="imprimir">Imprimir</button>
+  </div>
+
+  <div class="panel">
+    <div class="stats">
+      <div class="stat"><b id="sDias">0</b><span>Días trabajados</span></div>
+      <div class="stat"><b id="sHoras">0</b><span>Horas del mes</span></div>
+      <div class="stat"><b id="sPago">$0</b><span>Pago estimado</span></div>
+    </div>
+  </div>
+
+  <div class="panel table-wrap">
+    <table>
+      <thead>
+        <tr><th>Fecha</th><th>Día</th><th>Entrada</th><th>Salida</th><th>Estado</th><th class="num">Horas</th></tr>
+      </thead>
+      <tbody id="cuerpo"></tbody>
+    </table>
+    <div class="hint">Si marcas "Trabajado" sin horas, se usan las horas por jornada. Si pones entrada y salida, se calcula la diferencia.</div>
+  </div>
+</div>
+
+<script>
+const KEY = "libro_asistencia_v1";
+const DIAS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+const ESTADOS = ["Trabajado", "Libre", "Ausente", "Licencia", "Feriado"];
+
+let store = { valorHora: 3291, jornada: 10, meses: {} };
+let mesActual = "";
+
+function cargar() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) store = Object.assign(store, JSON.parse(raw));
+  } catch (e) { /* almacenamiento no disponible */ }
+}
+function guardar() {
+  try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* ignorar */ }
+}
+
+function hoyMes() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+}
+
+function registrosDelMes(mes) {
+  if (!store.meses[mes]) store.meses[mes] = {};
+  return store.meses[mes];
+}
+
+function horasDe(reg, dia) {
+  if (reg.st === "Trabajado" && reg.e && reg.s) {
+    const [eh, em] = reg.e.split(":").map(Number);
+    const [sh, sm] = reg.s.split(":").map(Number);
+    let min = (sh * 60 + sm) - (eh * 60 + em);
+    if (min < 0) min += 1440;
+    return min / 60;
+  }
+  if (reg.st === "Trabajado") return Number(store.jornada) || 0;
+  return 0;
+}
+
+function formatoPesos(n) {
+  return "$" + Math.round(n).toLocaleString("es-CL");
+}
+
+function formatoHoras(h) {
+  return Number.isInteger(h) ? String(h) : h.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function recalcular() {
+  const [y, m] = mesActual.split("-").map(Number);
+  const total = new Date(y, m, 0).getDate();
+  const reg = registrosDelMes(mesActual);
+  let horas = 0, dias = 0;
+  for (let d = 1; d <= total; d++) {
+    const clave = String(d).padStart(2, "0");
+    const r = reg[clave] || {};
+    const h = horasDe(r, d);
+    horas += h;
+    if (r.st === "Trabajado") dias++;
+    const celda = document.getElementById("h-" + clave);
+    if (celda) celda.textContent = h ? formatoHoras(h) : "";
+  }
+  document.getElementById("sDias").textContent = dias;
+  document.getElementById("sHoras").textContent = formatoHoras(horas);
+  document.getElementById("sPago").textContent = formatoPesos(horas * (Number(store.valorHora) || 0));
+}
+
+function render() {
+  const [y, m] = mesActual.split("-").map(Number);
+  const total = new Date(y, m, 0).getDate();
+  const reg = registrosDelMes(mesActual);
+  const cuerpo = document.getElementById("cuerpo");
+  cuerpo.innerHTML = "";
+
+  for (let d = 1; d <= total; d++) {
+    const clave = String(d).padStart(2, "0");
+    const fecha = new Date(y, m - 1, d);
+    const diaSemana = fecha.getDay();
+    const r = reg[clave] || { e: "", s: "", st: "Libre" };
+    const fin = diaSemana === 0 || diaSemana === 6;
+
+    const tr = document.createElement("tr");
+    if (fin) tr.className = "weekend";
+    tr.innerHTML =
+      "<td>" + clave + "/" + String(m).padStart(2, "0") + "</td>" +
+      "<td>" + DIAS[diaSemana] + "</td>" +
+      '<td><input type="time" data-k="' + clave + '" data-c="e" value="' + r.e + '"></td>' +
+      '<td><input type="time" data-k="' + clave + '" data-c="s" value="' + r.s + '"></td>' +
+      '<td><select data-k="' + clave + '" data-c="st">' +
+        ESTADOS.map(function (es) {
+          return '<option' + (es === r.st ? " selected" : "") + ">" + es + "</option>";
+        }).join("") +
+      "</select></td>" +
+      '<td class="num" id="h-' + clave + '"></td>';
+    cuerpo.appendChild(tr);
+  }
+  recalcular();
+}
+
+function alCambiar(ev) {
+  const el = ev.target;
+  const clave = el.dataset.k;
+  if (!clave) return;
+  const reg = registrosDelMes(mesActual);
+  if (!reg[clave]) reg[clave] = { e: "", s: "", st: "Libre" };
+  const campo = el.dataset.c;
+  reg[clave][campo] = el.value;
+  guardar();
+  recalcular();
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+  cargar();
+  mesActual = hoyMes();
+  document.getElementById("mes").value = mesActual;
+  document.getElementById("valorHora").value = store.valorHora;
+  document.getElementById("jornada").value = store.jornada;
+
+  document.getElementById("mes").addEventListener("change", function (e) {
+    if (e.target.value) { mesActual = e.target.value; render(); }
+  });
+  document.getElementById("valorHora").addEventListener("input", function (e) {
+    store.valorHora = Number(e.target.value) || 0; guardar(); recalcular();
+  });
+  document.getElementById("jornada").addEventListener("input", function (e) {
+    store.jornada = Number(e.target.value) || 0; guardar(); recalcular();
+  });
+  document.getElementById("limpiar").addEventListener("click", function () {
+    if (confirm("¿Borrar todos los registros de este mes?")) {
+      store.meses[mesActual] = {}; guardar(); render();
+    }
+  });
+  document.getElementById("imprimir").addEventListener("click", function () { window.print(); });
+  const archivo = document.getElementById("archivo");
+  document.getElementById("importar").addEventListener("click", function () { archivo.click(); });
+  archivo.addEventListener("change", function (e) {
+    const f = e.target.files[0];
+    if (!f) return;
+    const lector = new FileReader();
+    lector.onload = function () {
+      try {
+        const datos = JSON.parse(lector.result);
+        if (!datos || typeof datos.meses !== "object") throw new Error("formato");
+        store = Object.assign(store, datos);
+        guardar();
+        document.getElementById("valorHora").value = store.valorHora;
+        document.getElementById("jornada").value = store.jornada;
+        render();
+        alert("Datos importados.");
+      } catch (err) {
+        alert("El archivo no es válido.");
+      }
+      e.target.value = "";
+    };
+    lector.readAsText(f);
+  });
+  document.getElementById("exportar").addEventListener("click", async function () {
+    const downloads = await window.claude.use("downloads");
+    if (!downloads) { alert("Exportar no está disponible en esta vista."); return; }
+    try {
+      await downloads.save({ filename: "libro_asistencia_" + mesActual + ".json", data: JSON.stringify(store, null, 2) });
+    } catch (e) { alert("No se pudo exportar el archivo."); }
+  });
+  const botonTema = document.getElementById("tema");
+  botonTema.addEventListener("click", function () {
+    const raiz = document.documentElement;
+    const oscuro = raiz.dataset.theme === "dark" || (!raiz.dataset.theme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    raiz.dataset.theme = oscuro ? "light" : "dark";
+    botonTema.textContent = oscuro ? "🌙 Modo noche" : "☀️ Modo día";
+  });
+
+  document.getElementById("cuerpo").addEventListener("change", alCambiar);
+  render();
+});
+</script>
+<script>
+if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(function () {}); }
+</script>
+</body>
+</html>
