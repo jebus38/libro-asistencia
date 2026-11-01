@@ -268,13 +268,17 @@ document.addEventListener("DOMContentLoaded", function () {
     };
     lector.readAsText(f);
   });
-  document.getElementById("exportar").addEventListener("click", async function () {
-    const downloads = await window.claude.use("downloads");
-    if (!downloads) { alert("Exportar no está disponible en esta vista."); return; }
-    try {
-      await downloads.save({ filename: "libro_asistencia_" + mesActual + ".json", data: JSON.stringify(store, null, 2) });
-    } catch (e) { alert("No se pudo exportar el archivo."); }
-  });
+  document.getElementById("exportar").addEventListener("click", function () {
+  const blob = new Blob([JSON.stringify(store, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "libro_asistencia_" + mesActual + ".json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+});
   const botonTema = document.getElementById("tema");
   botonTema.addEventListener("click", function () {
     const raiz = document.documentElement;
